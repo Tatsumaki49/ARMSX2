@@ -271,10 +271,13 @@ fun SettingsScreen(
                         },
                     )
                     Spacer(Modifier.height(10.dp))
+                    val openSections: Set<String> = pendingJump
+                        ?.takeIf { it.category == displayedCategory }
+                        ?.sections
+                        ?.toSet()
+                        ?: emptySet()
                     CompositionLocalProvider(
-                        LocalSettingsSearchOpenSections provides pendingJump
-                            ?.takeIf { it.category == displayedCategory }?.sections?.toSet()
-                            ?: emptySet(),
+                        LocalSettingsSearchOpenSections provides openSections,
                     ) {
                         SettingsPanel(displayedCategory, viewModel, Modifier.fillMaxWidth())
                     }
