@@ -166,6 +166,12 @@ namespace Patch
 	extern bool ReloadPatchAffectingOptions();
 	extern void UnloadPatches();
 
+	/// Enables or disables a single patch/cheat group by name, persisting the change to the
+	/// Enable/Disable lists in `section` (PATCHES_CONFIG_SECTION or CHEATS_CONFIG_SECTION) and
+	/// immediately reapplying active patches. Safe to call from any thread.
+	/// Returns the new active count for that category.
+	extern u32 SetPatchGroupEnabled(const char* section, const std::string& name, bool enabled);
+
 	/// Functions for Dynamic EE patching.
 	extern void LoadDynamicPatches(const std::vector<DynamicPatch>& patches);
 	extern void ApplyDynamicPatches(u32 pc);

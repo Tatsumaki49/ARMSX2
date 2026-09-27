@@ -12,6 +12,7 @@
 #include "PerformanceMetrics.h"
 #include "SaveState.h"
 #include "PINE.h"
+#include "Patch.h"
 #include "VMManager.h"
 #include "vtlb.h"
 #include "common/Error.h"
@@ -218,6 +219,7 @@ namespace PINEServer
 		MsgFrameAdvance = 0x13, /**< Advances a paused VM by one frame. */
 		MsgGSDump = 0x14, /**< Records a GS dump of the next N frames. */
 		MsgGetEffectiveSetting = 0x15, /**< Reads what a setting is actually running as. */
+		MsgTogglePatch = 0x16, /**< Enables/disables a named patch or cheat group; returns new active count. */
 
 		MsgUnimplemented = 0xFF /**< Unimplemented IPC message. */
 	};
@@ -1222,6 +1224,34 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				ret_cnt += 4;
 				memcpy(&ret_buffer[ret_cnt], reply.c_str(), size);
 				ret_cnt += size;
+				break;
+			}
+			case MsgTogglePatch:
+			{
+				// [u8 kind: 0=patch, 1=cheat][u8 enable: 0/1][u32 name_len][name_len bytes]
+				// reply: [u32 new_active_count]
+				if (!VMManager::HasValidVM())
+					goto error;
+				if (!SafetyChecks(buf_cnt, 2, ret_cnt, 4, buf_size)) [[unlikely]]
+					goto error;
+
+				const u8 kind = FromSpan<u8>(buf, buf_cnt);
+				const u8 enable = FromSpan<u8>(buf, buf_cnt + 1);
+				buf_cnt += 2;
+
+				std::string name;
+				if (!ReadLengthPrefixedString(buf, buf_cnt, buf_size, &name)) [[unlikely]]
+					goto error;
+				if (kind > 1) [[unlikely]]
+					goto error;
+
+				const u32 new_count = Patch::SetPatchGroupEnabled(
+					kind == 1 ? Patch::CHEATS_CONFIG_SECTION : Patch::PATCHES_CONFIG_SECTION, name, enable != 0);
+
+				if (!SafetyChecks(buf_cnt, 0, ret_cnt, 4, buf_size)) [[unlikely]]
+					goto error;
+				ToResultVector(ret_buffer, new_count, ret_cnt);
+				ret_cnt += 4;
 				break;
 			}
 			case MsgFrameAdvance:

@@ -9,6 +9,7 @@
 #include "common/Path.h"
 #include "common/StringUtil.h"
 #include "common/ZipHelpers.h"
+#include "common/SettingsInterface.h"
 
 #include "Achievements.h"
 #include "Config.h"
@@ -1031,6 +1032,49 @@ void Patch::UnloadPatches()
 	decltype(s_cheat_patches)().swap(s_cheat_patches);
 	decltype(s_game_patches)().swap(s_game_patches);
 	decltype(s_gamedb_patches)().swap(s_gamedb_patches);
+}
+
+u32 Patch::SetPatchGroupEnabled(const char* section, const std::string& name, bool enabled)
+{
+	{
+		auto lock = Host::GetSettingsLock();
+		SettingsInterface* si = Host::GetSettingsInterface();
+
+		std::vector<std::string> enable_list = si->GetStringList(section, PATCH_ENABLE_CONFIG_KEY);
+		std::vector<std::string> disable_list = si->GetStringList(section, PATCH_DISABLE_CONFIG_KEY);
+
+		const auto remove_name = [&name](std::vector<std::string>& list) {
+			list.erase(std::remove(list.begin(), list.end(), name), list.end());
+		};
+
+		if (enabled)
+		{
+			remove_name(disable_list);
+			if (std::find(enable_list.begin(), enable_list.end(), name) == enable_list.end())
+				enable_list.push_back(name);
+		}
+		else
+		{
+			remove_name(enable_list);
+			if (std::find(disable_list.begin(), disable_list.end(), name) == disable_list.end())
+				disable_list.push_back(name);
+		}
+
+		si->SetStringList(section, PATCH_ENABLE_CONFIG_KEY, enable_list);
+		si->SetStringList(section, PATCH_DISABLE_CONFIG_KEY, disable_list);
+	}
+	Host::CommitBaseSettingChanges();
+
+	u32 result = 0;
+	const bool is_cheats = (std::string_view(section) == CHEATS_CONFIG_SECTION);
+	Host::RunOnCPUThread(
+		[&result, is_cheats]() {
+			UpdateActivePatches(/*reload_enabled_list=*/true, /*verbose=*/false, /*verbose_if_changed=*/true, /*apply_new_patches=*/true);
+			result = is_cheats ? GetActiveCheatsCount() : GetActivePatchesCount();
+		},
+		true /* block */);
+
+	return result;
 }
 
 // PatchFunc Functions.
