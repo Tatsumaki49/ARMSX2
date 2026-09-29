@@ -4856,6 +4856,47 @@ static void rc_client_award_achievement(rc_client_t* client, rc_client_achieveme
   rc_client_award_achievement_server_call(callback_data);
 }
 
+void rc_client_award_achievement_by_id(rc_client_t* client, uint32_t id)
+{
+  rc_client_subset_info_t* subset;
+  rc_client_achievement_info_t* achievement = NULL;
+  const uint8_t unlock_bit = client && client->state.hardcore ?
+    RC_CLIENT_ACHIEVEMENT_UNLOCKED_HARDCORE : RC_CLIENT_ACHIEVEMENT_UNLOCKED_SOFTCORE;
+
+  if (!client || !client->game)
+    return;
+
+  rc_mutex_lock(&client->state.mutex);
+
+  for (subset = client->game->subsets; subset; subset = subset->next) {
+    rc_client_achievement_info_t* current = subset->achievements;
+    rc_client_achievement_info_t* stop = current + subset->public_.num_achievements;
+
+    for (; current < stop; ++current) {
+      if (current->public_.id == id) {
+        achievement = current;
+        break;
+      }
+    }
+
+    if (achievement)
+      break;
+  }
+
+  if (!achievement ||
+      achievement->public_.category != RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE ||
+      achievement->public_.state == RC_CLIENT_ACHIEVEMENT_STATE_DISABLED ||
+      (achievement->public_.unlocked & unlock_bit) ||
+      rc_client_is_award_achievement_pending(client, id)) {
+    rc_mutex_unlock(&client->state.mutex);
+    return;
+  }
+
+  rc_mutex_unlock(&client->state.mutex);
+
+  rc_client_award_achievement(client, achievement);
+}
+
 static void rc_client_subset_reset_achievements(rc_client_subset_info_t* subset)
 {
   rc_client_achievement_info_t* achievement = subset->achievements;
