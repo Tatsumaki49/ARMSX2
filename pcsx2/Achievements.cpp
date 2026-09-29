@@ -4407,4 +4407,18 @@ bool Achievements::GetCurrentAchievementList(std::vector<AchievementInfo>* achie
 	return true;
 }
 
+void Achievements::UnlockAllAchievements()
+{
+	auto lock = GetLock();
+	if (!s_client)
+		return;
+
+	std::vector<AchievementInfo> achievements;
+	if (!GetCurrentAchievementList(&achievements))
+		return;
+
+	for (const AchievementInfo& achievement : achievements)
+		rc_client_award_achievement_by_id(s_client, achievement.id);
+}
+
 #endif // ENABLE_RAINTEGRATION
