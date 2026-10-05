@@ -1229,10 +1229,11 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 			case MsgTogglePatch:
 			{
 				// [u8 kind: 0=patch, 1=cheat][u8 enable: 0/1][u32 name_len][name_len bytes]
-				// reply: [u32 new_active_count]
+				// reply: none (plain OK) - the toggle is fire-and-forget, applied on the
+				// CPU thread shortly after this returns; no count is read back synchronously.
 				if (!VMManager::HasValidVM())
 					goto error;
-				if (!SafetyChecks(buf_cnt, 2, ret_cnt, 4, buf_size)) [[unlikely]]
+				if (!SafetyChecks(buf_cnt, 2, ret_cnt, 0, buf_size)) [[unlikely]]
 					goto error;
 
 				const u8 kind = FromSpan<u8>(buf, buf_cnt);
@@ -1245,13 +1246,8 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				if (kind > 1) [[unlikely]]
 					goto error;
 
-				const u32 new_count = Patch::SetPatchGroupEnabled(
+				Patch::SetPatchGroupEnabled(
 					kind == 1 ? Patch::CHEATS_CONFIG_SECTION : Patch::PATCHES_CONFIG_SECTION, name, enable != 0);
-
-				if (!SafetyChecks(buf_cnt, 0, ret_cnt, 4, buf_size)) [[unlikely]]
-					goto error;
-				ToResultVector(ret_buffer, new_count, ret_cnt);
-				ret_cnt += 4;
 				break;
 			}
 			case MsgFrameAdvance:

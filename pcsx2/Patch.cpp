@@ -1034,7 +1034,7 @@ void Patch::UnloadPatches()
 	decltype(s_gamedb_patches)().swap(s_gamedb_patches);
 }
 
-u32 Patch::SetPatchGroupEnabled(const char* section, const std::string& name, bool enabled)
+void Patch::SetPatchGroupEnabled(const char* section, const std::string& name, bool enabled)
 {
 	{
 		auto lock = Host::GetSettingsLock();
@@ -1065,16 +1065,16 @@ u32 Patch::SetPatchGroupEnabled(const char* section, const std::string& name, bo
 	}
 	Host::CommitBaseSettingChanges();
 
-	u32 result = 0;
-	const bool is_cheats = (std::string_view(section) == CHEATS_CONFIG_SECTION);
-	Host::RunOnCPUThread(
-		[&result, is_cheats]() {
-			UpdateActivePatches(/*reload_enabled_list=*/true, /*verbose=*/false, /*verbose_if_changed=*/true, /*apply_new_patches=*/true);
-			result = is_cheats ? GetActiveCheatsCount() : GetActivePatchesCount();
-		},
-		true /* block */);
-
-	return result;
+	// Fire-and-forget: dispatch the reapply to the CPU thread without blocking the calling
+	// (PINE) thread, and without reading back any emulator-internal counter afterwards.
+	// Both a blocking wait here and a same-call read of GetActive*PatchesCount() would touch
+	// CPU-thread-owned state from the PINE thread with no synchronization between the two -
+	// a data race that can crash intermittently. The caller gets a plain ack; if it needs the
+	// resulting count, that should be a separate, deliberately-synchronized query, not bolted
+	// onto this call.
+	Host::RunOnCPUThread([]() {
+		UpdateActivePatches(/*reload_enabled_list=*/true, /*verbose=*/false, /*verbose_if_changed=*/true, /*apply_new_patches=*/true);
+	});
 }
 
 // PatchFunc Functions.
