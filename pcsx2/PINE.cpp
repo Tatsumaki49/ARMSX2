@@ -11,6 +11,7 @@
 #include "MTGS.h"
 #include "PerformanceMetrics.h"
 #include "SaveState.h"
+#include "Achievements.h"
 #include "PINE.h"
 #include "Patch.h"
 #include "VMManager.h"
@@ -220,6 +221,7 @@ namespace PINEServer
 		MsgGSDump = 0x14, /**< Records a GS dump of the next N frames. */
 		MsgGetEffectiveSetting = 0x15, /**< Reads what a setting is actually running as. */
 		MsgTogglePatch = 0x16, /**< Enables/disables a named patch or cheat group; returns new active count. */
+		MsgGetAchievements = 0x17, /**< Returns the current game's achievement list + stats as JSON. */
 
 		MsgUnimplemented = 0xFF /**< Unimplemented IPC message. */
 	};
@@ -1248,6 +1250,23 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 
 				Patch::SetPatchGroupEnabled(
 					kind == 1 ? Patch::CHEATS_CONFIG_SECTION : Patch::PATCHES_CONFIG_SECTION, name, enable != 0);
+				break;
+			}
+			case MsgGetAchievements:
+			{
+				// No payload. Reply: [u32 size (incl. null terminator)][null-terminated UTF-8 JSON]
+				// GetAchievementsAsJSON() is self-contained and takes the Achievements lock itself -
+				// it reports "active": false in the JSON if no game/achievements are loaded, rather
+				// than erroring, so this doesn't require VMManager::HasValidVM() the way most other
+				// commands do.
+				const std::string json = Achievements::GetAchievementsAsJSON();
+				const u32 size = static_cast<u32>(json.size()) + 1;
+				if (!SafetyChecks(buf_cnt, 0, ret_cnt, size + 4, buf_size)) [[unlikely]]
+					goto error;
+				ToResultVector(ret_buffer, size, ret_cnt);
+				ret_cnt += 4;
+				memcpy(&ret_buffer[ret_cnt], json.c_str(), size);
+				ret_cnt += size;
 				break;
 			}
 			case MsgFrameAdvance:
