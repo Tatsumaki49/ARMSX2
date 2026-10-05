@@ -4407,18 +4407,30 @@ bool Achievements::GetCurrentAchievementList(std::vector<AchievementInfo>* achie
 	return true;
 }
 
-void Achievements::UnlockAllAchievements()
+bool Achievements::UnlockAchievement(u32 achievement_id)
+{
+	auto lock = GetLock();
+	if (!s_client || achievement_id == 0)
+		return false;
+
+	rc_client_award_achievement_by_id(s_client, achievement_id);
+	return true;
+}
+
+bool Achievements::UnlockAllAchievements()
 {
 	auto lock = GetLock();
 	if (!s_client)
-		return;
+		return false;
 
 	std::vector<AchievementInfo> achievements;
 	if (!GetCurrentAchievementList(&achievements))
-		return;
+		return false;
 
 	for (const AchievementInfo& achievement : achievements)
 		rc_client_award_achievement_by_id(s_client, achievement.id);
+
+	return true;
 }
 
 #endif // ENABLE_RAINTEGRATION

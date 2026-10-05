@@ -222,6 +222,8 @@ namespace PINEServer
 		MsgGetEffectiveSetting = 0x15, /**< Reads what a setting is actually running as. */
 		MsgTogglePatch = 0x16, /**< Enables/disables a named patch or cheat group; returns new active count. */
 		MsgGetAchievements = 0x17, /**< Returns the current game's achievement list + stats as JSON. */
+		MsgUnlockAchievement = 0x18, /**< Unlocks one achievement by RetroAchievements ID. */
+		MsgUnlockAllAchievements = 0x19, /**< Unlocks all achievements for the current game. */
 
 		MsgUnimplemented = 0xFF /**< Unimplemented IPC message. */
 	};
@@ -1267,6 +1269,32 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				ret_cnt += 4;
 				memcpy(&ret_buffer[ret_cnt], json.c_str(), size);
 				ret_cnt += size;
+				break;
+			}
+			case MsgUnlockAchievement:
+			{
+				// [u32 achievement_id]
+				// reply: [u8 success]
+				if (!SafetyChecks(buf_cnt, 4, ret_cnt, 1, buf_size)) [[unlikely]]
+					goto error;
+
+				const u32 achievement_id = FromSpan<u32>(buf, buf_cnt);
+				buf_cnt += 4;
+
+				const u8 success = Achievements::UnlockAchievement(achievement_id) ? 1 : 0;
+				ToResultVector(ret_buffer, success, ret_cnt);
+				ret_cnt += 1;
+				break;
+			}
+			case MsgUnlockAllAchievements:
+			{
+				// No payload. Reply: [u8 success]
+				if (!SafetyChecks(buf_cnt, 0, ret_cnt, 1, buf_size)) [[unlikely]]
+					goto error;
+
+				const u8 success = Achievements::UnlockAllAchievements() ? 1 : 0;
+				ToResultVector(ret_buffer, success, ret_cnt);
+				ret_cnt += 1;
 				break;
 			}
 			case MsgFrameAdvance:

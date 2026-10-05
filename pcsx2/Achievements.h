@@ -239,7 +239,8 @@ namespace Achievements
 	bool GetCurrentUserStats(UserStats* stats);
 	bool GetCurrentGameStats(GameStats* stats);
 	bool GetCurrentAchievementList(std::vector<AchievementInfo>* achievements);
-    void UnlockAllAchievements();
+	bool UnlockAchievement(u32 achievement_id);
+	bool UnlockAllAchievements();
 } // namespace Achievements
 
 /// Functions implemented in the frontend.
